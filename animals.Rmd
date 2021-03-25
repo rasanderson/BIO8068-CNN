@@ -6,6 +6,8 @@ output: word_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(keras)
+load("animals.RData")
 ```
 
 ## Introduction
@@ -16,12 +18,18 @@ Machine learning can be used in a wide range of ecological applications. These i
 We'll begin by using a standard, very large, dataset of photographs of cats and dogs, and train a convolutional neural network (CNN) to split them into 2 classes (a binary classification problem). Then we'll look at a much smaller dataset of multiple animal classes of wild and domestic species. A multi-class problem is more typical of what you might have to work on, but is computationally heavier, so I have only provided a small dataset for you. This means that the final accuracy of your CNN will be lower.
 
 ## Installing Keras and Tensorflow
-You can find lots of useful information about these packages at https://keras.rstudio.com/ which has many tutorials to take you from first steps. Classic datasets which you might find useful to learn more about deep learning are 'cats and dogs' (binary classification), 'mnist' (thousands of hand-drawn numbers from 0 to 9) and the 'fashion' dataset (simple outlines of shoes, socks, shirts etc.). I also recommend the book "Deep learning in R" by Francois Chollet, which is available in the Robinson Library. Installation is a little different from most R packages, as the deep learning is done by a Python 'back-end'. You need to issue the following commands, just once, to setup the system
+You can find lots of useful information about these packages at <https://keras.rstudio.com/> which has many tutorials to take you from first steps. Classic datasets which you might find useful to learn more about deep learning are 'cats and dogs' (binary classification), 'mnist' (thousands of hand-drawn numbers from 0 to 9) and the 'fashion' dataset (simple outlines of shoes, socks, shirts etc.). See under the "Tutorials -> Basic classification" example on the Keras website. I also recommend the book "Deep learning in R" by Francois Chollet, which is available in the Robinson Library.
+
+Installation is a little different from most R packages, as the deep learning is done by a Python 'back-end'. You need to issue the following commands, just once, to setup the system
 
 ```{r install keras, eval=FALSE}
+# First use
 install.packages("keras")
 library(keras)
 install_keras()
+
+# All subsequent use, simply issue
+# library(keras)
 ```
 
 On all subsequent sessions you only need to issue the `library(keras)` command as you would in any other R package.
@@ -33,10 +41,6 @@ Download the data file `animals.zip` from the Blackboard website. Copy it from y
 Create an R project in your `animals` folder, with the two folders `Training` and `Validation` below. Begin by setting up the environment, attaching labels to your categories, and decide on the size of the images. The original images are typically 340 x 640 pixels in size, but they vary. They all need to be the same size for the analysis; if we make them too small we lose detail, but too large and the analysis will be slow.
 
 ```{r initial setup}
-rm(list=ls())
-
-library(keras)
-
 # list of animals to model
 animal_list <- c("Butterfly", "Cow", "Elephant", "Spider")
 
@@ -133,9 +137,7 @@ model %>%
 
   # Second hidden layer
   layer_conv_2d(filter = 16, kernel_size = c(3,3), activation = "relu") %>%
-  #layer_activation_leaky_relu(0.5) %>%
-  #layer_batch_normalization() %>%
-  
+
   # Use max pooling
   layer_max_pooling_2d(pool_size = c(2,2)) %>%
   layer_dropout(0.25) %>%
@@ -178,7 +180,7 @@ model %>% compile(
 
 Compiling a model simply defines what error term to use to measure the accuracy of the model. With separate classes, use `categorical_crossentropy` but if, for example, you had presence/absence data use `binary_crossentropy`. Now you can train it. Depending on the CPU on your PC, the next step will take about 5 minutes to complete.
 
-```{r train model}
+```{r train model, eval=FALSE}
 # Train the model with fit_generator
 history <- model %>% fit_generator(
   # training data
@@ -199,11 +201,16 @@ history <- model %>% fit_generator(
 
 The results of the model training are stored in the `history` object, which can be plotted, and it is useful to save your model. For something small, like this example, you can simple save the R data space with the `save.image` command. For larger models, especially if you are fine-tuning them and want to compare outputs and predictions, it is better to use the dedicated Keras `save_model_hdf5` which stores it in a special hdf5 format. You can retrieve a model using the `load_model_hdf5` command.
 
-```{r plot and save results}
+```{r plot and save results, eval=FALSE}
 plot(history)
 save.image("animals.RData")
 model %>% save_model_hdf5("animals_simple.hdf5")
 ```
+
+```{r, echo=FALSE}
+plot(history)
+```
+
 
 Finally, to see how well the model predicts individual photos, you can use the `predict_classes` function. Remember from earlier, that the index for the first class (Butterfly) is zero, so if the model is working then most of the first set should be zeros etc.
 
@@ -231,9 +238,12 @@ train_image_array_gen <- flow_images_from_directory(train_image_files_path,
 
 Now refit the model, and see what the results are like:
 
-```{r fit augmented model}
+```{r fit augmented model, eval=FALSE}
+# Copy the original model (this is not essential; could keep the same name)
+model_aug <- model
+
 # Train the model with fit_generator
-history <- model %>% fit_generator(
+history_aug <- model %>% fit_generator(
   # training data
   train_image_array_gen,
   
@@ -249,8 +259,12 @@ history <- model %>% fit_generator(
   verbose = 2
 )
 
-plot(history)
+plot(history_aug)
 ```
+```{r, echo=FALSE}
+plot(history_aug)
+```
+
 
 If you are lucky (!) the model accuracy might have improved (it didn't for me I will admit).
 
@@ -280,6 +294,7 @@ for (i in 1:4) {
 par(op)                                                               
 
 ```
+
 
 You can see how the images have been flipped horizontally (but not vertically, as we did not request that), and slightly shifted and zoomed.
 
