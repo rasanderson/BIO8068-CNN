@@ -108,6 +108,8 @@ cat("Class labels vs index mapping")
 train_image_array_gen$class_indices
 ```
 
+Recall that `keras` calls an external machine-learning library called Tensorflow, which is not written in R, but a different language called Python. One oddity with Python is that it counts values in an object from zero, rather than one. This is why the Butterfly class has been coded as 0, and the maximum class of 3 (rather than 4) is allocated to spider.
+
 ### Final setup
 We just want to add a few more items before we can define our machine learning model
 
