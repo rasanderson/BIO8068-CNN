@@ -1,7 +1,9 @@
 ---
 title: "BIO8068 Data Visualisaton in Ecology"
-subtitle: "Machine learning to classify images"
-output: word_document
+subtitle: Machine learning to classify images
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
