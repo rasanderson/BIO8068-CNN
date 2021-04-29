@@ -2,7 +2,7 @@ library(keras)
 
 ## ----initial setup---------------------------------------------------------------------------------
 # list of animals to model
-animal_list <- c("Butterfly", "Cow", "Elephant", "Spider")
+animal_list <- c("butterfly", "cow", "elephant", "spider")
 
 # number of output classes (i.e. fruits)
 output_n <- length(animal_list)
