@@ -8,8 +8,9 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(keras)
-load("animals.RData")
+library(torch)
+library(torchvision)
+#load("animals.RData")
 ```
 
 ## Introduction
