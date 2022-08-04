@@ -58,6 +58,7 @@ target_size <- c(img_width, img_height)
 channels <- 3
 
 # path to image folders
+# Note: you may need to omit the trailing \\ if using MacOS or Linux
 train_image_files_path <- "Training\\"
 valid_image_files_path <- "Validation\\"
 ```
