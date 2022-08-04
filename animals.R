@@ -160,7 +160,7 @@ train_image_array_gen <- flow_images_from_directory(train_image_files_path,
 model_aug <- model
 
 # Train the model with fit_generator
-history_aug <- model %>% fit_generator(
+history_aug <- model_aug %>% fit(
   # training data
   train_image_array_gen,
 
