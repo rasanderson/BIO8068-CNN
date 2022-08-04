@@ -187,7 +187,7 @@ Compiling a model simply defines what error term to use to measure the accuracy 
 
 ```{r train model, eval=FALSE}
 # Train the model with fit_generator
-history <- model %>% fit_generator(
+history <- model %>% fit(
   # training data
   train_image_array_gen,
   

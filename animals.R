@@ -113,7 +113,7 @@ model %>% compile(
 
 # ----train model, eval=FALSE-----------------------------------------------------------------------
 # Train the model with fit_generator
-history <- model %>% fit_generator(
+history <- model %>% fit(
   # training data
   train_image_array_gen,
 
