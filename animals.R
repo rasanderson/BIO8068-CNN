@@ -1,11 +1,17 @@
-library(keras)
+library(torch)
+library(torchvision)
+library(luz)
+library(ggplot2)
+
+device <- if (cuda_is_available()) torch_device("cuda:0") else "cpu"
+
 
 ## ----initial setup---------------------------------------------------------------------------------
 # list of animals to model
-animal_list <- c("butterfly", "cow", "elephant", "spider")
+#animal_list <- c("butterfly", "cow", "elephant", "spider")
 
 # number of output classes (i.e. fruits)
-output_n <- length(animal_list)
+#output_n <- length(animal_list)
 
 # image size to scale down to (original images vary but about 600 x 800 px)
 img_width <- 250
@@ -16,61 +22,233 @@ target_size <- c(img_width, img_height)
 channels <- 3
 
 # path to image folders
-train_image_files_path <- "Training\\"
-valid_image_files_path <- "Validation\\"
+# For Windows change to Training\\ and Validation\\
+train_image_files_path <- "Training"
+valid_image_files_path <- "Validation"
 
 
 ## ----augmentation skeleton-------------------------------------------------------------------------
 # Rescale from 255 to between zero and 1
-train_data_gen = image_data_generator(
-  rescale = 1/255
-)
+# Initially don't bother with augmentation and keep really simple
+# Need to work out how to use transform_normalise to standardise to 256
+train_transforms <- function(img) {
+  img %>%
+    transform_to_tensor() %>%
+    (function(x) x$to(device = device)) %>%
+    transform_resize(target_size) # %>%
+    #transform_center_crop(224) %>%
+    #transform_normalize(mean = c(0.485, 0.456, 0.406), std = c(0.229, 0.224, 0.225))
+}
 
-valid_data_gen <- image_data_generator(
-  rescale = 1/255
-)  
+valid_transforms <- train_transforms
+
+# train_data_gen = image_data_generator(
+#   rescale = 1/255
+# )
+# 
+# valid_data_gen <- image_data_generator(
+#   rescale = 1/255
+# )  
 
 
 ## ----data generator--------------------------------------------------------------------------------
 # training images
-train_image_array_gen <- flow_images_from_directory(train_image_files_path, 
-                                                    train_data_gen,
-                                                    target_size = target_size,
-                                                    class_mode = "categorical",
-                                                    classes = animal_list,
-                                                    seed = 42)
+train_ds <- image_folder_dataset(
+  file.path("Training"),
+  transform = train_transforms)
+valid_ds <- image_folder_dataset(
+  file.path("Validation"),
+  transform = train_transforms)
 
-# validation images
-valid_image_array_gen <- flow_images_from_directory(valid_image_files_path, 
-                                                    valid_data_gen,
-                                                    target_size = target_size,
-                                                    class_mode = "categorical",
-                                                    classes = animal_list,
-                                                    seed = 42)
+train_ds$.length()
+valid_ds$.length()
+
+class_names <- train_ds$classes
+length(class_names)
+
+
+
+
+batch_size <- 32 #64
+
+train_dl <- dataloader(train_ds, batch_size = batch_size, shuffle = TRUE)
+valid_dl <- dataloader(valid_ds, batch_size = batch_size)
+
+# How many batches?
+train_dl$.length() 
+valid_dl$.length()
+
+# Display some animals
+# for display purposes, here we are actually using a batch_size of 24
+batch <- train_dl$.iter()$.next()
+
+# batch is a list, the first item being the image tensors:
+batch[[1]]$size()
+# And the second, the classes:
+batch[[2]]$size()
+
+# Classes are coded as integers, to be used as indices in a vector of class
+# names. We’ll use those for labeling the images.
+classes <- batch[[2]]
+classes
+
+# The image tensors have shape batch_size x num_channels x height x width. For
+#  plotting using as.raster(), we need to reshape the images such that channels
+#  come last. We also undo the normalization applied by the dataloader.
+# Here are the first twenty-four images:
+library(dplyr)
+
+images <- as_array(batch[[1]]) %>% aperm(perm = c(1, 3, 4, 2))
+#mean <- c(0.485, 0.456, 0.406)
+#std <- c(0.229, 0.224, 0.225)
+#images <- std * images + mean
+images <- images * 255
+images[images > 255] <- 255
+images[images < 0] <- 0
+# Originally 4 x 6 but seems inconsistent in plotting as 32 in batch
+# par(mfcol = c(4,6), mar = rep(1, 4))
+par(mfcol = c(4,8), mar = rep(1, 4))
+
+images %>%
+  purrr::array_tree(1) %>%
+  purrr::set_names(class_names[as_array(classes)]) %>%
+  purrr::map(as.raster, max = 255) %>%
+  purrr::iwalk(~{plot(.x); title(.y)})
+
+par(mfcol = c(1,1))
+
+# Now the model
+torch_manual_seed(777)
+
+net <- nn_module(
+  
+  "simple-cnn",
+  
+  initialize = function() {
+    # start with batch_size * channels * width * height
+    # 32 * 3 * 250 * 250 = 6e+06
+    # in_channels, out_channels, kernel_size, stride = 1, padding = 0
+    self$conv1 <- nn_conv2d(3, 64, kernel_size = 3) #nn_conv2d(1, 32, 3)
+    # Above converts to 32 * 32 * 249 * 249 image size ??!!
+    self$conv2 <- nn_conv2d(64, 32, kernel_size = 3) #nn_conv2d(32, 64, 3)
+    # Above converts to 32 * 64 * 248 * 248
+    self$dropout1 <- nn_dropout2d(0.25)
+    self$dropout2 <- nn_dropout2d(0.5)
+    # The nnf_max_pool2d(2) below converts to
+    # 32 * 64 * 124 * 124. 64 * 124 * 124 = 984064
+    self$fc1 <- nn_linear(984064, 32) # nn_linear(9216, 128)
+    self$fc2 <- nn_linear(32, out_features = 4) #nn_linear(128, 4)
+   },
+  
+  forward = function(x) {
+    x %>% 
+      self$conv1() %>%
+      nnf_relu() %>%
+      self$conv2() %>%
+      nnf_relu() %>%
+      nnf_max_pool2d(2) %>%
+      self$dropout1() %>%
+      torch_flatten(start_dim = 2) %>%
+      self$fc1() %>%
+      nnf_relu() %>%
+      self$dropout2() %>%
+      self$fc2()     
+  }
+)
+
+
+# Training ----
+
+fitted <- net %>%
+  setup(
+    loss = nn_cross_entropy_loss(),
+    optimizer = optim_adam,
+    metrics = list(
+      luz_metric_accuracy()
+    )
+  ) %>%
+  fit(train_dl, epochs = 10, valid_data = valid_dl)
+
+
+
+
+
+
+
+model <- net()
+model$to(device = device)
+
+optimizer <- optim_adam(model$parameters)
+
+# this will be called for every batch, see training loop below
+# loss <- nnf_cross_entropy(output, b[[2]]$to(device = device))
+
+
+
+for (epoch in 1:5) {
+  
+  l <- c()
+  
+  coro::loop(for (b in train_dl) {
+    # make sure each batch's gradient updates are calculated from a fresh start
+    optimizer$zero_grad()
+    # get model predictions
+    output <- model(b[[1]]$to(device = device))
+    # calculate loss
+    loss <- nnf_cross_entropy(output, b[[2]]$to(device = device))
+    # calculate gradient
+    loss$backward()
+    # apply weight updates
+    optimizer$step()
+    # track losses
+    l <- c(l, loss$item())
+  })
+  
+  cat(sprintf("Loss at epoch %d: %3f\n", epoch, mean(l)))
+}
+
+
+
+
+
+# train_image_array_gen <- flow_images_from_directory(train_image_files_path, 
+#                                                     train_data_gen,
+#                                                     target_size = target_size,
+#                                                     class_mode = "categorical",
+#                                                     classes = animal_list,
+#                                                     seed = 42)
+# 
+# # validation images
+# valid_image_array_gen <- flow_images_from_directory(valid_image_files_path, 
+#                                                     valid_data_gen,
+#                                                     target_size = target_size,
+#                                                     class_mode = "categorical",
+#                                                     classes = animal_list,
+#                                                     seed = 42)
 
 
 ## ----check generator-------------------------------------------------------------------------------
 # Check that things seem to have been read in OK
-cat("Number of images per class:")
-table(factor(train_image_array_gen$classes))
-cat("Class labels vs index mapping")
-train_image_array_gen$class_indices
+# cat("Number of images per class:")
+# table(factor(train_image_array_gen$classes))
+# cat("Class labels vs index mapping")
+# train_image_array_gen$class_indices
 
 
 ## ----final setup-----------------------------------------------------------------------------------
 # number of training samples
-train_samples <- train_image_array_gen$n
-# number of validation samples
-valid_samples <- valid_image_array_gen$n
+# train_samples <- train_image_array_gen$n
+# # number of validation samples
+# valid_samples <- valid_image_array_gen$n
 
 # define batch size and number of epochs
-batch_size <- 32 # Typical default, though possibly a little high given small dataset
-epochs <- 10
+# batch_size <- 32 # Typical default, though possibly a little high given small dataset
+# epochs <- 10
 
 
 ## ----define CNN structure--------------------------------------------------------------------------
 # initialise model
-model <- keras_model_sequential()
+# model <- keras_model_sequential()
 
 # add layers
 model %>%
