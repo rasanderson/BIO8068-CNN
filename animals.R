@@ -106,7 +106,7 @@ print(model)
 # Compile the model
 model %>% compile(
   loss = "categorical_crossentropy",
-  optimizer = optimizer_rmsprop(lr = 0.0001, decay = 1e-6),
+  optimizer = optimizer_rmsprop(learning_rate = 0.0001, decay = 1e-6),
   metrics = "accuracy"
 )
 
