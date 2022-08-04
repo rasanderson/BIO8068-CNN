@@ -14,8 +14,8 @@ device <- if (cuda_is_available()) torch_device("cuda:0") else "cpu"
 #output_n <- length(animal_list)
 
 # image size to scale down to (original images vary but about 600 x 800 px)
-img_width <- 250
-img_height <- 250
+img_width <- 28
+img_height <- 28
 target_size <- c(img_width, img_height)
 
 # RGB = 3 channels
@@ -35,7 +35,8 @@ train_transforms <- function(img) {
   img %>%
     transform_to_tensor() %>%
     (function(x) x$to(device = device)) %>%
-    transform_resize(target_size) # %>%
+    transform_resize(target_size)  %>%
+    transform_grayscale()
     #transform_center_crop(224) %>%
     #transform_normalize(mean = c(0.485, 0.456, 0.406), std = c(0.229, 0.224, 0.225))
 }
@@ -92,30 +93,48 @@ batch[[2]]$size()
 classes <- batch[[2]]
 classes
 
-# The image tensors have shape batch_size x num_channels x height x width. For
-#  plotting using as.raster(), we need to reshape the images such that channels
-#  come last. We also undo the normalization applied by the dataloader.
-# Here are the first twenty-four images:
-library(dplyr)
+# # The image tensors have shape batch_size x num_channels x height x width. For
+# #  plotting using as.raster(), we need to reshape the images such that channels
+# #  come last. We also undo the normalization applied by the dataloader.
+# # Here are the first twenty-four images:
+# library(dplyr)
+# 
+# images <- as_array(batch[[1]]) %>% aperm(perm = c(1, 3, 4, 2))
+# #mean <- c(0.485, 0.456, 0.406)
+# #std <- c(0.229, 0.224, 0.225)
+# #images <- std * images + mean
+# images <- images * 255
+# images[images > 255] <- 255
+# images[images < 0] <- 0
+# # Originally 4 x 6 but seems inconsistent in plotting as 32 in batch
+# # par(mfcol = c(4,6), mar = rep(1, 4))
+# par(mfcol = c(4,8), mar = rep(1, 4))
+# 
+# images %>%
+#   purrr::array_tree(1) %>%
+#   purrr::set_names(class_names[as_array(classes)]) %>%
+#   purrr::map(as.raster, max = 255) %>%
+#   purrr::iwalk(~{plot(.x); title(.y)})
+# 
+# par(mfcol = c(1,1))
 
-images <- as_array(batch[[1]]) %>% aperm(perm = c(1, 3, 4, 2))
-#mean <- c(0.485, 0.456, 0.406)
-#std <- c(0.229, 0.224, 0.225)
-#images <- std * images + mean
-images <- images * 255
-images[images > 255] <- 255
-images[images < 0] <- 0
-# Originally 4 x 6 but seems inconsistent in plotting as 32 in batch
-# par(mfcol = c(4,6), mar = rep(1, 4))
-par(mfcol = c(4,8), mar = rep(1, 4))
 
+
+train_ds[1][[1]]$size()
+
+
+
+# Display greyscale
+par(mfrow = c(4,8), mar = rep(0, 4))
+images <- train_dl$.iter()$.next()[[1]][1:32, 1, , ] 
 images %>%
   purrr::array_tree(1) %>%
-  purrr::set_names(class_names[as_array(classes)]) %>%
-  purrr::map(as.raster, max = 255) %>%
-  purrr::iwalk(~{plot(.x); title(.y)})
+  purrr::map(as.raster) %>%
+  purrr::iwalk(~{plot(.x)})
 
-par(mfcol = c(1,1))
+
+
+
 
 # Now the model
 torch_manual_seed(777)
