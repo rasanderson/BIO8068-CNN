@@ -33,20 +33,21 @@ train_transforms <- function(img) {
   img %>%
     #(function(x) x$to(device = device)) %>%
     transform_to_tensor() %>% 
-    transform_resize(target_size) %>%
+    transform_rgb_to_grayscale() %>% 
+    transform_resize(target_size) #%>%
 #    transform_resize(28, 28) %>% 
-    transform_rgb_to_grayscale() #%>% 
-    #transform_to_tensor()
+    #torchvision::transform_to_tensor()
 }
 valid_transforms <- train_transforms
 
 ## ----data generator--------------------------------------------------------------------------------
 # training images
 train_ds <- image_folder_dataset(
-  file.path("Training"),
-  transform = train_transforms)
+  file.path(train_image_files_path),
+  transform = train_transforms,
+  target_transform = function(x) as.double(x) - 1)
 valid_ds <- image_folder_dataset(
-  file.path("Validation"),
+  file.path(train_image_files_path),
   transform = train_transforms)
 
 train_ds$.length()
