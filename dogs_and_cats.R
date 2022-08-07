@@ -43,6 +43,13 @@ valid_dl <- dataloader(valid_ds, batch_size = 64, num_workers = 4)
 test_dl <- dataloader(test_ds, batch_size = 64, num_workers = 4)
 
 # Note: this is using Alexnet
+batch <- train_dl$.iter()$.next()
+# Next line should show torch_tensor (1,1,.,.) 
+train_dl$.iter()$.next()
+# batch is a list, the first item being the image tensors:
+batch[[1]]$size()
+# And the second, the classes:
+batch[[2]]$size()
 
 
 net <- torch::nn_module(

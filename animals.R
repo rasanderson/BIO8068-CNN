@@ -6,37 +6,32 @@ library(ggplot2)
 device <- if (cuda_is_available()) torch_device("cuda:0") else "cpu"
 
 ## ----initial setup---------------------------------------------------------------------------------
-# list of animals to model
-#animal_list <- c("butterfly", "cow", "elephant", "spider")
-
 # image size to scale down to (original images vary but about 600 x 800 px)
 img_width <- 28
 img_height <- 28
 target_size <- c(img_width, img_height)
 
 # RGB = 3 channels
-# channels <- 3
+#channels <- 3
 # Greyscale
-channels <- 1
+#channels <- 1
 
 # path to image folders
 # For Windows change to Training\\ and Validation\\
 train_image_files_path <- "Training"
 valid_image_files_path <- "Validation"
 
-
 ## ----augmentation skeleton-------------------------------------------------------------------------
 # Rescale from 255 to between zero and 1
 # Initially don't bother with augmentation and keep really simple
 # Need to work out how to use transform_normalise to standardise to 256
-train_transforms <- function(img) {
-  img %>%
-    #(function(x) x$to(device = device)) %>%
+train_transforms <- function(animal) {
+  animal %>%
     transform_to_tensor() %>% 
-    transform_rgb_to_grayscale() %>% 
-    transform_resize(target_size) #%>%
-#    transform_resize(28, 28) %>% 
-    #torchvision::transform_to_tensor()
+    (function(x) x$to(device = device)) %>% 
+    transform_resize(target_size) %>% 
+    torch_reshape(list(3, 28, 28))
+    #transform_rgb_to_grayscale()
 }
 valid_transforms <- train_transforms
 
@@ -44,23 +39,40 @@ valid_transforms <- train_transforms
 # training images
 train_ds <- image_folder_dataset(
   file.path(train_image_files_path),
-  transform = train_transforms,
-  target_transform = function(x) as.double(x) - 1)
+  transform = train_transforms)
 valid_ds <- image_folder_dataset(
-  file.path(train_image_files_path),
+  file.path(valid_image_files_path),
   transform = train_transforms)
 
 train_ds$.length()
 valid_ds$.length()
+train_length <- train_ds$.length()
+for(i in 1:train_length){
+  print(c(i,train_ds[i][[1]]$size()))
+}
+valid_length <- valid_ds$.length()
+for(i in 1:valid_length){
+  print(c(i, valid_ds[i][[1]]$size()))
+}
+for(i in 1:train_length){
+  print(c(i,train_ds[i][[1]]$size()))
+}
 
 class_names <- train_ds$classes
 length(class_names)
 class_names
 
-batch_size <- 32 #32 in tutorial. 64
+batch_size <- 64 #32 in tutorial. 64
 
 train_dl <- dataloader(train_ds, batch_size = batch_size, shuffle = TRUE)
 valid_dl <- dataloader(valid_ds, batch_size = batch_size)
+batch <- train_dl$.iter()$.next()
+# batch is a list, the first item being the image tensors:
+batch[[1]]$size()
+# And the second, the classes:
+batch[[2]]$size()
+
+
 
 # How many batches?
 train_dl$.length() 
@@ -72,10 +84,6 @@ batch <- train_dl$.iter()$.next()
 # Next line should show torch_tensor (1,1,.,.) Error as mine shows (1,.,.)
 train_dl$.iter()$.next()
 
-# batch is a list, the first item being the image tensors:
-batch[[1]]$size()
-# And the second, the classes:
-batch[[2]]$size()
 
 # Classes are coded as integers, to be used as indices in a vector of class
 # names. We’ll use those for labeling the images.
@@ -85,20 +93,21 @@ train_ds[1]
 
 # Size of the tensor. It should display as 1 28 28
 # Suspect error as showing 28 28
-train_ds[1][[1]]$size()
+train_ds[200][[1]]$size()
 
 # Display greyscale
-par(mfrow = c(3,4), mar = rep(0, 4))
-# images <- train_dl$.iter()$.next()[[1]][1:32, 1, , ] # RGB
-images <- train_dl$.iter()$.next()[[1]][1:batch_size, , ] # greyscale
+par(mfrow = c(3,4), mar = rep(1, 4))
+images <- as_array(batch[[1]]) %>% aperm(perm = c(1, 3, 4, 2))
+#images <- train_dl$.iter()$.next()[[1]][1:batch_size, , ] # greyscale
 images %>%
   purrr::array_tree(1) %>%
+  purrr::set_names(class_names[as_array(classes)]) %>%
   purrr::map(as.raster) %>%
-  purrr::iwalk(~{plot(.x)})
+  purrr::iwalk(~{plot(.x); title(.y)})
 par(mfrow = c(1,1))
 
 # Now the model
-torch_manual_seed(777)
+torch_manual_seed(123)
 net <- nn_module(
   "animalsCNN",
   
@@ -110,12 +119,12 @@ net <- nn_module(
     # self$dropout2 <- nn_dropout2d(0.5)
     # self$fc1 <- nn_linear(9216, 128)
     # self$fc2 <- nn_linear(128, 10)
-    self$conv1 <- nn_conv2d(1, 32, 3)
+    self$conv1 <- nn_conv2d(3, 32, 3)
     self$conv2 <- nn_conv2d(32, 64, 3)
     self$dropout1 <- nn_dropout2d(0.25)
     self$dropout2 <- nn_dropout2d(0.5)
     self$fc1 <- nn_linear(9216, 128)
-    self$fc2 <- nn_linear(128, 10)
+    self$fc2 <- nn_linear(128, 3)
   },
   
   forward = function(x) {
@@ -207,7 +216,7 @@ fitted <- net %>%
       luz_metric_accuracy()
     )
   ) %>%
-  fit(train_dl, epochs = 10, valid_data = valid_dl)
+  fit(train_dl, epochs = n_epochs, valid_data = valid_dl)
 
 
 
