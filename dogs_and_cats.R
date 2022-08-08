@@ -19,15 +19,16 @@ device <- if (cuda_is_available()) torch_device("cuda:0") else "cpu"
 train_transforms <- function(img) {
   img %>%
     #(function(x) x$to(device = device)) %>%
-    torchvision::transform_to_tensor() %>% 
-    torchvision::transform_resize(size = c(224, 224)) # %>%
+    torchvision::transform_to_tensor(.) %>% 
+    torchvision::transform_resize(., size = c(28, 28)) # %>%
+    #    torchvision::transform_resize(size = c(224, 224)) # %>%
     #torchvision::transform_normalise(rep(0.5, 3), rep(0.5, 3)) 
 }
 
 ds <- image_folder_dataset(
   file.path("~/Downloads/dogs-vs-cats"),
-  transform = train_transforms,
-  target_transform = function(x) as.double(x) - 1)
+  transform = train_transforms) #,
+  #target_transform = function(x) as.double(x) - 1)
 
 
 train_ids <- sample(1:length(ds), size = 0.6 * length(ds))
@@ -45,36 +46,89 @@ test_dl <- dataloader(test_ds, batch_size = 64, num_workers = 4)
 # Note: this is using Alexnet
 batch <- train_dl$.iter()$.next()
 # Next line should show torch_tensor (1,1,.,.) 
-train_dl$.iter()$.next()
+#train_dl$.iter()$.next()
 # batch is a list, the first item being the image tensors:
 batch[[1]]$size()
 # And the second, the classes:
 batch[[2]]$size()
 
 
-net <- torch::nn_module(
+# net <- torch::nn_module(
+#   
+#   initialize = function(output_size) {
+#     self$model <- model_alexnet(pretrained = TRUE)
+#     
+#     for (par in self$parameters) {
+#       par$requires_grad_(FALSE)
+#     }
+#     
+#     self$model$classifier <- nn_sequential(
+#       nn_dropout(0.5),
+#       nn_linear(9216, 512),
+#       nn_relu(),
+#       nn_linear(512, 256),
+#       nn_relu(),
+#       nn_linear(256, output_size)
+#     )
+#   },
+#   forward = function(x) {
+#     self$model(x)[,1]
+#   }
+#   
+# )
+
+net <- nn_module(
+  "dogsvcats",
   
-  initialize = function(output_size) {
-    self$model <- model_alexnet(pretrained = TRUE)
-    
-    for (par in self$parameters) {
-      par$requires_grad_(FALSE)
-    }
-    
-    self$model$classifier <- nn_sequential(
-      nn_dropout(0.5),
-      nn_linear(9216, 512),
-      nn_relu(),
-      nn_linear(512, 256),
-      nn_relu(),
-      nn_linear(256, output_size)
-    )
+  initialize = function() {
+    self$conv1 <- nn_conv2d(3, 32, 3)
+    self$conv2 <- nn_conv2d(32, 64, 3)
+    self$dropout1 <- nn_dropout2d(0.25)
+    self$dropout2 <- nn_dropout2d(0.5)
+    self$fc1 <- nn_linear(9216, 128)
+    self$fc2 <- nn_linear(128, 1)
   },
+  
   forward = function(x) {
-    self$model(x)[,1]
+    x %>% 
+      self$conv1() %>%
+      nnf_relu() %>%
+      self$conv2() %>%
+      nnf_relu() %>%
+      nnf_max_pool2d(2) %>%
+      self$dropout1() %>%
+      torch_flatten(start_dim = 2) %>%
+      self$fc1() %>%
+      nnf_relu() %>%
+      self$dropout2() %>%
+      self$fc2()
+  }
+)
+
+model <- net()
+model$to(device = device)
+
+optimizer <- optim_adam(model$parameters)
+
+
+n_epochs <- 3
+
+for (epoch in 1:n_epochs) {
+  
+  l <- c()
+  
+  for (b in enumerate(train_dl)) {
+    optimizer$zero_grad()
+    output <- model(b[[1]]$to(device = device))
+    loss <- nnf_cross_entropy(output, b[[2]]$to(device = device))
+    loss$backward()
+    optimizer$step()
+    l <- c(l, loss$item())
   }
   
-)
+  cat(sprintf("Loss at epoch %d: %3f\n", epoch, mean(l)))
+}
+
 
 # Training
 # 
@@ -102,18 +156,18 @@ net <- torch::nn_module(
 #   in order.
 #   
 # #   Default
-fitted <- net %>%
-  setup(
-    loss = nn_bce_with_logits_loss(),
-    optimizer = optim_adam,
-    metrics = list(
-      luz_metric_binary_accuracy_with_logits()
-    )
-  ) %>%
-  set_hparams(output_size = 1) %>%
-  set_opt_hparams(lr = 0.01) %>%
-  fit(train_dl, epochs = 3, valid_data = valid_dl)
-
+# fitted <- net %>%
+#   setup(
+#     loss = nn_bce_with_logits_loss(),
+#     optimizer = optim_adam,
+#     metrics = list(
+#       luz_metric_binary_accuracy_with_logits()
+#     )
+#   ) %>%
+#   set_hparams(output_size = 1) %>%
+#   set_opt_hparams(lr = 0.01) %>%
+#   fit(train_dl, epochs = 3, valid_data = valid_dl)
+# 
 # # Save model weights and early stopping
 # fitted <- net %>%
 #   setup(
