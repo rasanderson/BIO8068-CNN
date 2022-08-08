@@ -3,7 +3,7 @@ library(torchvision)
 library(torchdatasets)
 library(luz)
 
-dir <- "~/Downloads/dogs-vs-cats" 
+dir <- "~/Downloads/dogs-vs-cats2" 
 device <- if (cuda_is_available()) torch_device("cuda:0") else "cpu"
 
 # ds <- torchdatasets::dogs_vs_cats_dataset(
@@ -26,7 +26,7 @@ train_transforms <- function(img) {
 }
 
 ds <- image_folder_dataset(
-  file.path("~/Downloads/dogs-vs-cats"),
+  file.path(dir),
   transform = train_transforms) #,
   #target_transform = function(x) as.double(x) - 1)
 
@@ -77,7 +77,8 @@ batch[[2]]$size()
 #   
 # )
 
-num_classes <- 2
+torch_manual_seed(123)
+num_class <- 2
 
 net <- nn_module(
   "dogsvcats",
@@ -88,7 +89,7 @@ net <- nn_module(
     self$dropout1 <- nn_dropout2d(0.25)
     self$dropout2 <- nn_dropout2d(0.5)
     self$fc1 <- nn_linear(9216, 128)
-    self$fc2 <- nn_linear(128, num_classes)
+    self$fc2 <- nn_linear(128, num_class)
   },
   
   forward = function(x) {
@@ -107,27 +108,35 @@ net <- nn_module(
   }
 )
 
-model <- net()
-model$to(device = device)
-
-optimizer <- optim_adam(model$parameters)
-
-
 n_epochs <- 3
 
+## Next bit should work (from mnist example) but gives closure error
+# fitted <- net %>%
+#   setup(
+#     loss = nn_cross_entropy_loss(),
+#     optimizer = optim_adam,
+#     metrics = list(
+#       luz_metric_accuracy
+#     )
+#   ) %>%
+#   #set_hparams(num_class = 2) %>% 
+#   set_opt_hparams(lr = 0.003) %>% 
+#   fit(train_dl, epochs = n_epochs, valid_data = test_dl)
+
+model <- net()
+model$to(device = device)
+optimizer <- optim_adam(model$parameters)
+
 for (epoch in 1:n_epochs) {
-  
   l <- c()
-  
-  for (b in enumerate(train_dl)) {
+  coro::loop(for (b in train_dl) {
     optimizer$zero_grad()
-    output <- model(b[[1]]$to(device = device))
-    loss <- nnf_cross_entropy(output, b[[2]]$to(device = device))
+    output <- model(b[[1]])
+    loss <- nnf_cross_entropy(output, b[[2]])
     loss$backward()
     optimizer$step()
     l <- c(l, loss$item())
-  }
-  
+  })
   cat(sprintf("Loss at epoch %d: %3f\n", epoch, mean(l)))
 }
 
@@ -188,5 +197,5 @@ for (epoch in 1:n_epochs) {
 #                        luz_callback_early_stopping(patience = 2)))
 
 # Training finished, we can ask luz to save the trained model:
-luz_save(fitted, "dogs-and-cats.pt")
+#luz_save(fitted, "dogs-and-cats.pt")
 
