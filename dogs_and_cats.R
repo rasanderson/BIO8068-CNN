@@ -77,6 +77,8 @@ batch[[2]]$size()
 #   
 # )
 
+num_classes <- 2
+
 net <- nn_module(
   "dogsvcats",
   
@@ -86,7 +88,7 @@ net <- nn_module(
     self$dropout1 <- nn_dropout2d(0.25)
     self$dropout2 <- nn_dropout2d(0.5)
     self$fc1 <- nn_linear(9216, 128)
-    self$fc2 <- nn_linear(128, 1)
+    self$fc2 <- nn_linear(128, num_classes)
   },
   
   forward = function(x) {
