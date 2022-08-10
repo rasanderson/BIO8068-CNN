@@ -40,13 +40,7 @@ valid_ds <- image_folder_dataset(
 train_ds$.length()
 valid_ds$.length()
 train_length <- train_ds$.length()
-for(i in 1:train_length){
-  print(c(i,train_ds[i][[1]]$size()))
-}
 valid_length <- valid_ds$.length()
-for(i in 1:valid_length){
-  print(c(i, valid_ds[i][[1]]$size()))
-}
 
 class_names <- train_ds$classes
 length(class_names)
@@ -137,27 +131,96 @@ net <- nn_module(
 )
 
 # Training the model -----------------------------------------------------------
-model <- net()
-model$to(device = device)
-optimizer <- optim_adam(model$parameters)
-
 n_epochs <- 5
 
+#fitted <- net %>%
+#  setup(
+#    loss = nn_cross_entropy_loss(),
+#    optimizer = optim_adam,
+#    metrics = list(
+#      luz_metric_accuracy
+#    )
+#  ) %>%
+#  fit(train_dl, epochs = n_epochs, valid_data = valid_dl)
+
+
+
+torch_manual_seed(123)
+criterion <- nn_cross_entropy_loss()
+optimizer <- optim_sgd(model$parameters, lr = 0.05, momentum = 0.9)
+
+
+scheduler <- optimizer %>% 
+  lr_one_cycle(max_lr = 0.05, epochs = n_epochs, steps_per_epoch = train_dl$.length())
+
+
+
+train_batch <- function(b) {
+
+  optimizer$zero_grad()
+  output <- model(b[[1]])
+  loss <- criterion(output, b[[2]]$to(device = device))
+  loss$backward()
+  optimizer$step()
+  scheduler$step()
+  loss$item()
+
+}
+
+valid_batch <- function(b) {
+
+  output <- model(b[[1]])
+  loss <- criterion(output, b[[2]]$to(device = device))
+  loss$item()
+}
+
 for (epoch in 1:n_epochs) {
-  l <- c()
-  coro::loop(for (b in train_dl){
-    optimizer$zero_grad()
-    output <- model(b[[1]]$to(device = device))
-    loss <- nnf_cross_entropy(output, b[[2]]$to(device = device))
-    loss$backward()
-    optimizer$step()
-    l <- c(l, loss$item())
+
+  model$train()
+  train_losses <- c()
+
+  coro::loop(for (b in train_dl) {
+    loss <- train_batch(b)
+    train_losses <- c(train_losses, loss)
   })
-  cat(sprintf("Loss at epoch %d: %3f\n", epoch, mean(l)))
+
+  model$eval()
+  valid_losses <- c()
+
+  coro::loop(for (b in valid_dl) {
+    loss <- valid_batch(b)
+    valid_losses <- c(valid_losses, loss)
+  })
+
+  cat(sprintf("\nLoss at epoch %d: training: %3f, validation: %3f\n", epoch, mean(train_losses), mean(valid_losses)))
 }
 
 
 
+
+#
+#
+#model <- net()
+#model$to(device = device)
+#optimizer <- optim_adam(model$parameters)
+#
+#n_epochs <- 5
+#
+#for (epoch in 1:n_epochs) {
+#  l <- c()
+#  coro::loop(for (b in train_dl){
+#    optimizer$zero_grad()
+#    output <- model(b[[1]]$to(device = device))
+#    loss <- nnf_cross_entropy(output, b[[2]]$to(device = device))
+#    loss$backward()
+#    optimizer$step()
+#    l <- c(l, loss$item())
+#  })
+#  cat(sprintf("Loss at epoch %d: %3f\n", epoch, mean(l)))
+#}
+#
+#
+#
 # net <- nn_module(
 #   
 #   "simple-cnn",
