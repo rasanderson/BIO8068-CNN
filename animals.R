@@ -18,8 +18,8 @@ target_size <- c(img_width, img_height)
 
 # path to image folders
 # For Windows change to Training\\ and Validation\\
-train_image_files_path <- "Training"
-valid_image_files_path <- "Validation"
+train_image_files_path <- "~/Downloads/animals2/animals2/Training"
+valid_image_files_path <- "~/Downloads/animals2/animals2/Validation"
 
 ## ----augmentation skeleton-------------------------------------------------------------------------
 # Rescale from 255 to between zero and 1
@@ -29,8 +29,8 @@ train_transforms <- function(animal) {
   animal %>%
     transform_to_tensor() %>% 
     (function(x) x$to(device = device)) %>% 
-    transform_resize(target_size) %>% 
-    torch_reshape(list(3, 28, 28))
+    transform_resize(target_size) # %>% 
+    #torch_reshape(list(3, 28, 28))
     #transform_rgb_to_grayscale()
 }
 valid_transforms <- train_transforms
@@ -54,12 +54,10 @@ valid_length <- valid_ds$.length()
 for(i in 1:valid_length){
   print(c(i, valid_ds[i][[1]]$size()))
 }
-for(i in 1:train_length){
-  print(c(i,train_ds[i][[1]]$size()))
-}
 
 class_names <- train_ds$classes
 length(class_names)
+num_class <- length(class_names)
 class_names
 
 batch_size <- 64 #32 in tutorial. 64
@@ -106,6 +104,7 @@ images %>%
   purrr::iwalk(~{plot(.x); title(.y)})
 par(mfrow = c(1,1))
 
+
 # Now the model
 torch_manual_seed(123)
 net <- nn_module(
@@ -113,18 +112,12 @@ net <- nn_module(
   
   initialize = function() {
     # in_channels, out_channels, kernel_size, stride = 1, padding = 0
-    # self$conv1 <- nn_conv2d(1, 32, 3)
-    # self$conv2 <- nn_conv2d(32, 64, 3)
-    # self$dropout1 <- nn_dropout2d(0.25)
-    # self$dropout2 <- nn_dropout2d(0.5)
-    # self$fc1 <- nn_linear(9216, 128)
-    # self$fc2 <- nn_linear(128, 10)
     self$conv1 <- nn_conv2d(3, 32, 3)
     self$conv2 <- nn_conv2d(32, 64, 3)
     self$dropout1 <- nn_dropout2d(0.25)
     self$dropout2 <- nn_dropout2d(0.5)
     self$fc1 <- nn_linear(9216, 128)
-    self$fc2 <- nn_linear(128, 3)
+    self$fc2 <- nn_linear(128, num_class)
   },
   
   forward = function(x) {
@@ -149,21 +142,18 @@ model$to(device = device)
 optimizer <- optim_adam(model$parameters)
 
 
-n_epochs <- 5
+n_epochs <- 3
 
 for (epoch in 1:n_epochs) {
-  
   l <- c()
-  
-  for (b in enumerate(train_dl)) {
+  coro::loop(for (b in train_dl){
     optimizer$zero_grad()
     output <- model(b[[1]]$to(device = device))
     loss <- nnf_cross_entropy(output, b[[2]]$to(device = device))
     loss$backward()
     optimizer$step()
     l <- c(l, loss$item())
-  }
-  
+  })
   cat(sprintf("Loss at epoch %d: %3f\n", epoch, mean(l)))
 }
 
@@ -204,19 +194,19 @@ for (epoch in 1:n_epochs) {
 #       self$fc2()     
 #   }
 # )
-
-
-# Training ----
-
-fitted <- net %>%
-  setup(
-    loss = nn_cross_entropy_loss(),
-    optimizer = optim_adam,
-    metrics = list(
-      luz_metric_accuracy()
-    )
-  ) %>%
-  fit(train_dl, epochs = n_epochs, valid_data = valid_dl)
+#
+#
+## Training ----
+#
+#fitted <- net %>%
+#  setup(
+#    loss = nn_cross_entropy_loss(),
+#    optimizer = optim_adam,
+#    metrics = list(
+#      luz_metric_accuracy()
+#    )
+#  ) %>%
+#  fit(train_dl, epochs = n_epochs, valid_data = valid_dl)
 
 
 
