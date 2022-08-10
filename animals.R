@@ -103,30 +103,28 @@ torch_manual_seed(123)
 final_in_features <- ((img_width - 2 - 2) / 2) ^ 2 * 64
 net <- nn_module(
   "animalsCNN",
-  
   initialize = function() {
     # in_channels, out_channels, kernel_size, stride = 1, padding = 0
     self$conv1 <- nn_conv2d(3, 32, 3)   #  1 32 3 # 
     self$conv2 <- nn_conv2d(32, 64, 3)  # 32 64 3
     self$dropout1 <- nn_dropout2d(0.25)
     self$dropout2 <- nn_dropout2d(0.5)
-    self$fc1 <- nn_linear(final_in_features, 128)    # 9216 128
-    self$fc2 <- nn_linear(128, num_class) # 128 10
+    self$fc1 <- nn_linear(final_in_features, 128)    # final_in_features=30976
+    self$fc2 <- nn_linear(128, num_class)            # num_class=4
   },
-  
   forward = function(x) {
-      x <- self$conv1()
-      x <- nnf_relu()
-      x <- self$conv2()
-      x <- nnf_relu()
-      x <- nnf_max_pool2d(x, 2)
-      x <- self$dropout1()
-      x <- torch_flatten(start_dim = 2)
-      x <- self$fc1()
-      x <- nnf_relu()
-      x <- self$dropout2()
-      x <- self$fc2()
-      x
+    x %>% 
+      self$conv1() %>% 
+      nnf_relu() %>% 
+      self$conv2() %>% 
+      nnf_relu() %>% 
+      nnf_max_pool2d(2) %>% 
+      self$dropout1() %>% 
+      torch_flatten(start_dim = 2) %>% 
+      self$fc1() %>% 
+      nnf_relu() %>% 
+      self$dropout2() %>% 
+      self$fc2()
   }
 )
 
@@ -138,7 +136,7 @@ fitted <- net %>%
     loss = nn_cross_entropy_loss(),
     optimizer = optim_adam,
     metrics = list(
-      luz_metric_accuracy
+      luz_metric_accuracy()
     )
   ) %>%
   fit(train_dl, epochs = n_epochs, valid_data = valid_dl)
