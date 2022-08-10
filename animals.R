@@ -7,10 +7,9 @@ device <- if (cuda_is_available()) torch_device("cuda:0") else "cpu"
 
 ## ----initial setup-----------------------------------------------------------
 # image size to scale down to (original images vary but about 600 x 800 px)
-img_width <- 28
-img_height <- 28
+img_width <- 48
+img_height <- 48
 target_size <- c(img_width, img_height)
-
 
 # path to image folders
 # For Windows change to Training\\ and Validation\\
@@ -54,7 +53,7 @@ length(class_names)
 num_class <- length(class_names)
 class_names
 
-batch_size <- 32 #32 in tutorial. 64
+batch_size <- 24
 
 train_dl <- dataloader(train_ds, batch_size = batch_size, shuffle = TRUE)
 valid_dl <- dataloader(valid_ds, batch_size = batch_size)
@@ -82,7 +81,7 @@ train_ds[1]
 train_ds[200][[1]]$size()
 
 # Display images
-par(mfrow = c(3,4), mar = rep(1, 4))
+par(mfrow = c(4,6), mar = rep(1, 4))
 images <- as_array(batch[[1]]) %>% aperm(perm = c(1, 3, 4, 2))
 images %>%
   purrr::array_tree(1) %>%
@@ -93,17 +92,32 @@ par(mfrow = c(1,1))
 
 # Define the model
 torch_manual_seed(123)
+
+# Calculation of final number of parameters-------------------------------------
+# Assumes img_width == img_height
+# nn_conv2d
+# Two convolution layers, with kernel = 3, stride = 1, reduce the with and
+# height dimensions by 2 for each 2d convolution, hence -2 -2
+# nn_max_pool2d
+# Max pooling halves size, hence / 2
+# Images
+# Working with 2D images, hence ^2
+# self$conv2
+# This sets number of output paramters as 64, hence * 64
+# self$fc1
+# Takes as input the final number of in_features calculated below
+final_in_features <- ((img_width - 2 - 2) / 2) ^ 2 * 64
 net <- nn_module(
   "animalsCNN",
   
   initialize = function() {
     # in_channels, out_channels, kernel_size, stride = 1, padding = 0
-    self$conv1 <- nn_conv2d(3, 32, 3)
-    self$conv2 <- nn_conv2d(32, 64, 3)
+    self$conv1 <- nn_conv2d(3, 32, 3)   #  1 32 3 # 
+    self$conv2 <- nn_conv2d(32, 64, 3)  # 32 64 3
     self$dropout1 <- nn_dropout2d(0.25)
     self$dropout2 <- nn_dropout2d(0.5)
-    self$fc1 <- nn_linear(9216, 128)
-    self$fc2 <- nn_linear(128, num_class)
+    self$fc1 <- nn_linear(final_in_features, 128)    # 9216 128
+    self$fc2 <- nn_linear(128, num_class) # 128 10
   },
   
   forward = function(x) {
