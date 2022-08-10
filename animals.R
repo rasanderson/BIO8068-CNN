@@ -143,9 +143,9 @@ n_epochs <- 5
 #  ) %>%
 #  fit(train_dl, epochs = n_epochs, valid_data = valid_dl)
 
-
-
 torch_manual_seed(123)
+model <- net()
+model$to(device = device)
 criterion <- nn_cross_entropy_loss()
 optimizer <- optim_sgd(model$parameters, lr = 0.05, momentum = 0.9)
 
@@ -153,29 +153,23 @@ optimizer <- optim_sgd(model$parameters, lr = 0.05, momentum = 0.9)
 scheduler <- optimizer %>% 
   lr_one_cycle(max_lr = 0.05, epochs = n_epochs, steps_per_epoch = train_dl$.length())
 
-
-
 train_batch <- function(b) {
-
   optimizer$zero_grad()
   output <- model(b[[1]])
-  loss <- criterion(output, b[[2]]$to(device = device))
+  loss <- criterion(output, b[[2]])
   loss$backward()
   optimizer$step()
   scheduler$step()
   loss$item()
-
 }
 
 valid_batch <- function(b) {
-
   output <- model(b[[1]])
-  loss <- criterion(output, b[[2]]$to(device = device))
+  loss <- criterion(output, b[[2]])
   loss$item()
 }
 
 for (epoch in 1:n_epochs) {
-
   model$train()
   train_losses <- c()
 
@@ -194,8 +188,6 @@ for (epoch in 1:n_epochs) {
 
   cat(sprintf("\nLoss at epoch %d: training: %3f, validation: %3f\n", epoch, mean(train_losses), mean(valid_losses)))
 }
-
-
 
 
 #
