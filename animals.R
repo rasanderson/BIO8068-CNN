@@ -60,7 +60,7 @@ length(class_names)
 num_class <- length(class_names)
 class_names
 
-batch_size <- 64 #32 in tutorial. 64
+batch_size <- 32 #32 in tutorial. 64
 
 train_dl <- dataloader(train_ds, batch_size = batch_size, shuffle = TRUE)
 valid_dl <- dataloader(valid_ds, batch_size = batch_size)
@@ -142,7 +142,7 @@ model$to(device = device)
 optimizer <- optim_adam(model$parameters)
 
 
-n_epochs <- 3
+n_epochs <- 5
 
 for (epoch in 1:n_epochs) {
   l <- c()
