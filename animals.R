@@ -74,15 +74,15 @@ train_ds[1]
 # Size of single tensor. It should display as channels x width x height
 train_ds[200][[1]]$size()
 
-# Display images
-par(mfrow = c(4,6), mar = rep(1, 4))
-images <- as_array(batch[[1]]) %>% aperm(perm = c(1, 3, 4, 2))
-images %>%
-  purrr::array_tree(1) %>%
-  purrr::set_names(class_names[as_array(classes)]) %>%
-  purrr::map(as.raster) %>%
-  purrr::iwalk(~{plot(.x); title(.y)})
-par(mfrow = c(1,1))
+## Display images
+#par(mfrow = c(4,6), mar = rep(1, 4))
+#images <- as_array(batch[[1]]) %>% aperm(perm = c(1, 3, 4, 2))
+#images %>%
+#  purrr::array_tree(1) %>%
+#  purrr::set_names(class_names[as_array(classes)]) %>%
+#  purrr::map(as.raster) %>%
+#  purrr::iwalk(~{plot(.x); title(.y)})
+#par(mfrow = c(1,1))
 
 # Define the model
 torch_manual_seed(123)
@@ -115,79 +115,79 @@ net <- nn_module(
   },
   
   forward = function(x) {
-    x %>% 
-      self$conv1() %>%
-      nnf_relu() %>%
-      self$conv2() %>%
-      nnf_relu() %>%
-      nnf_max_pool2d(2) %>%
-      self$dropout1() %>%
-      torch_flatten(start_dim = 2) %>%
-      self$fc1() %>%
-      nnf_relu() %>%
-      self$dropout2() %>%
-      self$fc2()
+      x <- self$conv1()
+      x <- nnf_relu()
+      x <- self$conv2()
+      x <- nnf_relu()
+      x <- nnf_max_pool2d(x, 2)
+      x <- self$dropout1()
+      x <- torch_flatten(start_dim = 2)
+      x <- self$fc1()
+      x <- nnf_relu()
+      x <- self$dropout2()
+      x <- self$fc2()
+      x
   }
 )
 
 # Training the model -----------------------------------------------------------
 n_epochs <- 5
 
-#fitted <- net %>%
-#  setup(
-#    loss = nn_cross_entropy_loss(),
-#    optimizer = optim_adam,
-#    metrics = list(
-#      luz_metric_accuracy
-#    )
-#  ) %>%
-#  fit(train_dl, epochs = n_epochs, valid_data = valid_dl)
+fitted <- net %>%
+  setup(
+    loss = nn_cross_entropy_loss(),
+    optimizer = optim_adam,
+    metrics = list(
+      luz_metric_accuracy
+    )
+  ) %>%
+  fit(train_dl, epochs = n_epochs, valid_data = valid_dl)
 
-torch_manual_seed(123)
-model <- net()
-model$to(device = device)
-criterion <- nn_cross_entropy_loss()
-optimizer <- optim_sgd(model$parameters, lr = 0.05, momentum = 0.9)
-
-
-scheduler <- optimizer %>% 
-  lr_one_cycle(max_lr = 0.05, epochs = n_epochs, steps_per_epoch = train_dl$.length())
-
-train_batch <- function(b) {
-  optimizer$zero_grad()
-  output <- model(b[[1]])
-  loss <- criterion(output, b[[2]])
-  loss$backward()
-  optimizer$step()
-  scheduler$step()
-  loss$item()
-}
-
-valid_batch <- function(b) {
-  output <- model(b[[1]])
-  loss <- criterion(output, b[[2]])
-  loss$item()
-}
-
-for (epoch in 1:n_epochs) {
-  model$train()
-  train_losses <- c()
-
-  coro::loop(for (b in train_dl) {
-    loss <- train_batch(b)
-    train_losses <- c(train_losses, loss)
-  })
-
-  model$eval()
-  valid_losses <- c()
-
-  coro::loop(for (b in valid_dl) {
-    loss <- valid_batch(b)
-    valid_losses <- c(valid_losses, loss)
-  })
-
-  cat(sprintf("\nLoss at epoch %d: training: %3f, validation: %3f\n", epoch, mean(train_losses), mean(valid_losses)))
-}
+#torch_manual_seed(123)
+#model <- net()
+#model$to(device = device)
+#criterion <- nn_cross_entropy_loss()
+#optimizer <- optim_sgd(model$parameters, lr = 0.05, momentum = 0.9)
+#
+#
+#scheduler <- optimizer %>% 
+#  lr_one_cycle(max_lr = 0.05, epochs = n_epochs, steps_per_epoch = train_dl$.length())
+#
+#train_batch <- function(b) {
+#  optimizer$zero_grad()
+#  output <- model(b[[1]])
+#  loss <- criterion(output, b[[2]])
+#  loss$backward()
+#  optimizer$step()
+#  scheduler$step()
+#  loss$item()
+#}
+#
+#valid_batch <- function(b) {
+#  output <- model(b[[1]])
+#  loss <- criterion(output, b[[2]])
+#  loss$item()
+#}
+#
+#for (epoch in 1:n_epochs) {
+#  model$train()
+#  train_losses <- c()
+#
+#  coro::loop(for (b in train_dl) {
+#    loss <- train_batch(b)
+#    train_losses <- c(train_losses, loss)
+#  })
+#
+#  model$eval()
+#  valid_losses <- c()
+#
+#  coro::loop(for (b in valid_dl) {
+#    loss <- valid_batch(b)
+#    valid_losses <- c(valid_losses, loss)
+#  })
+#
+#  cat(sprintf("\nLoss at epoch %d: training: %3f, validation: %3f\n", epoch, mean(train_losses), mean(valid_losses)))
+#}
 
 
 #
