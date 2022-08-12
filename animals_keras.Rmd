@@ -58,6 +58,7 @@ target_size <- c(img_width, img_height)
 channels <- 3
 
 # path to image folders
+# Note: you may need to omit the trailing \\ if using MacOS or Linux
 train_image_files_path <- "Training\\"
 valid_image_files_path <- "Validation\\"
 ```
@@ -177,7 +178,7 @@ Now at last you are read to "compile" the model and train it. As it trains, an i
 # Compile the model
 model %>% compile(
   loss = "categorical_crossentropy",
-  optimizer = optimizer_rmsprop(lr = 0.0001, decay = 1e-6),
+  optimizer = optimizer_rmsprop(learning_rate = 0.0001, decay = 1e-6),
   metrics = "accuracy"
 )
 ```
@@ -186,7 +187,7 @@ Compiling a model simply defines what error term to use to measure the accuracy 
 
 ```{r train model, eval=FALSE}
 # Train the model with fit_generator
-history <- model %>% fit_generator(
+history <- model %>% fit(
   # training data
   train_image_array_gen,
   
@@ -247,7 +248,7 @@ Now refit the model, and see what the results are like:
 model_aug <- model
 
 # Train the model with fit_generator
-history_aug <- model %>% fit_generator(
+history_aug <- model_aug %>% fit(
   # training data
   train_image_array_gen,
   

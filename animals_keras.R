@@ -16,6 +16,7 @@ target_size <- c(img_width, img_height)
 channels <- 3
 
 # path to image folders
+# Note: you may need to omit the trailing \\ if using MacOS or Linux
 train_image_files_path <- "Training\\"
 valid_image_files_path <- "Validation\\"
 
@@ -105,14 +106,14 @@ print(model)
 # Compile the model
 model %>% compile(
   loss = "categorical_crossentropy",
-  optimizer = optimizer_rmsprop(lr = 0.0001, decay = 1e-6),
+  optimizer = optimizer_rmsprop(learning_rate = 0.0001, decay = 1e-6),
   metrics = "accuracy"
 )
 
 
 # ----train model, eval=FALSE-----------------------------------------------------------------------
 # Train the model with fit_generator
-history <- model %>% fit_generator(
+history <- model %>% fit(
   # training data
   train_image_array_gen,
 
@@ -159,7 +160,7 @@ train_image_array_gen <- flow_images_from_directory(train_image_files_path,
 model_aug <- model
 
 # Train the model with fit_generator
-history_aug <- model %>% fit_generator(
+history_aug <- model_aug %>% fit(
   # training data
   train_image_array_gen,
 
