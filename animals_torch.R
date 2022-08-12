@@ -2,6 +2,8 @@ library(torch)
 library(torchvision)
 library(luz)
 library(ggplot2)
+library(yardstick)
+library(dplyr)
 
 device <- if (cuda_is_available()) torch_device("cuda:0") else "cpu"
 
@@ -140,6 +142,21 @@ fitted <- net %>%
     )
   ) %>%
   fit(train_dl, epochs = n_epochs, valid_data = valid_dl)
+
+
+#pred <- torch_max(fitted(valid_ds$x_num, valid_ds$x_cat), dim = 2)[[2]] %>%
+pred <- predict(fitted, valid_ds) %>% 
+  as_array() %>% 
+  max.col()
+truth <- valid_ds$samples[[2]] %>%
+  as.vector()
+
+confusion <- bind_cols(pred = pred, truth = truth) %>%
+  mutate(across(everything(), ~factor(.x, levels = 1:4, labels = class_names))) %>%
+  conf_mat(truth, pred)
+
+autoplot(confusion, type = "heatmap") + 
+  scale_fill_distiller(palette = 2, direction = "reverse")
 
 #torch_manual_seed(123)
 #model <- net()
