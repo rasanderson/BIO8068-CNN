@@ -180,3 +180,94 @@ joint %>%
   group_by(Resample) %>%
   roc_curve(truth, butterfly:spider) %>% 
   autoplot()
+
+# Improving model predictions with augmentation ----
+train_transforms <- function(animal) {
+  animal %>%
+    transform_to_tensor() %>% 
+    (function(x) x$to(device = device)) %>% 
+    transform_resize(target_size) %>% 
+    # Randomly flip
+    transform_random_horizontal_flip() %>% 
+    # Randomly change brightness, hue, saturation
+    transform_color_jitter()
+}
+# Do not want to augment the validation data, so declare explicitly
+valid_transforms <- function(animal) {
+  animal %>%
+    transform_to_tensor() %>% 
+    (function(x) x$to(device = device)) %>% 
+    transform_resize(target_size)
+}
+
+## ----data generator----------------------------------------------------------
+# training images
+train_ds <- image_folder_dataset(
+  file.path(train_image_files_path),
+  transform = train_transforms)
+valid_ds <- image_folder_dataset(
+  file.path(valid_image_files_path),
+  transform = train_transforms)
+
+# Load up augmented data
+train_dl <- dataloader(train_ds, batch_size = batch_size, shuffle = TRUE)
+valid_dl <- dataloader(valid_ds, batch_size = batch_size)
+batch <- train_dl$.iter()$.next()
+
+
+## Display augmented images
+par(mfrow = c(4,6), mar = rep(1, 4))
+images <- as_array(batch[[1]]) %>% aperm(perm = c(1, 3, 4, 2))
+images %>%
+ purrr::array_tree(1) %>%
+ purrr::set_names(class_names[as_array(classes)]) %>%
+ purrr::map(as.raster) %>%
+ purrr::iwalk(~{plot(.x); title(.y)})
+par(mfrow = c(1,1))
+
+
+# Now refit the model using the augmentation data
+fitted <- net %>%
+  setup(
+    loss = nn_cross_entropy_loss(),
+    optimizer = optim_adam,
+    metrics = list(
+      luz_metric_accuracy()
+    )
+  ) %>%
+  fit(train_dl, epochs = n_epochs, valid_data = valid_dl)
+
+plot(fitted)
+
+# Make predictions
+pred <- predict(fitted, valid_ds) %>% 
+  as_array() %>% 
+  max.col()
+truth <- valid_ds$samples[[2]] %>%
+  as.vector()
+
+# Calculate and display confusion matrix
+confusion <- bind_cols(pred = pred, truth = truth) %>%
+  mutate(across(everything(), ~factor(.x, levels = 1:4, labels = class_names))) %>%
+  conf_mat(truth, pred)
+
+autoplot(confusion, type = "heatmap") + 
+  scale_fill_distiller(palette = 2, direction = "reverse")
+
+pred2 <- exp(as.matrix(predict(fitted, valid_ds)))
+probs <- pred2 / rowSums(pred2)
+joint <- data.frame(as.factor(truth), probs, as.factor(pred))
+colnames(joint) <- c("truth", class_names, "pred")
+metrics(joint, truth, pred)
+precision(joint, truth, pred)
+
+joint %>%
+  mutate(Resample = 1) %>% 
+  group_by(Resample) %>%
+  roc_auc(truth, butterfly:spider)
+
+joint %>%
+  mutate(Resample = 1) %>% 
+  group_by(Resample) %>%
+  roc_curve(truth, butterfly:spider) %>% 
+  autoplot()
